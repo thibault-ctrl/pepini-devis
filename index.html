@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Pepini Devis — App</title>
+<style>
+  :root {
+    --sage: #8aa58c; --sage-dark: #5d7a5f; --sage-light: #b9cdba;
+    --cream: #faf7f0; --border: #e4ddcd; --pidf: #d4a03e; --pidf-bg: #fdf5e0;
+    --ok: #4a7c4e; --warn: #d9952a; --fail: #b84a4a; --text: #2d2d2d;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--cream); color: var(--text); margin: 0; font-size: 14px; }
+  header { background: var(--sage-dark); color: white; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 22px; font-weight: 700; }
+  nav { display: flex; gap: 8px; }
+  nav button { background: rgba(255,255,255,0.1); color: white; border: 0; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  nav button.active { background: white; color: var(--sage-dark); }
+  nav button:hover:not(.active) { background: rgba(255,255,255,0.2); }
+  .container { max-width: 1500px; margin: 0 auto; padding: 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  h2 { color: var(--sage-dark); margin: 0 0 16px; font-size: 22px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+  @media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; } }
+  .card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  textarea.devis { width: 100%; min-height: 280px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6; resize: vertical; }
+  .controls { display: flex; flex-direction: column; gap: 16px; }
+  .mode-toggle { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .mode-toggle button { flex: 1; background: white; border: 0; padding: 12px; cursor: pointer; font-weight: 600; color: #888; transition: all .2s; font-size: 13px; }
+  .mode-toggle button.active { background: var(--sage); color: white; }
+  .mode-info { font-size: 12px; color: #666; padding: 12px; background: var(--cream); border-radius: 6px; line-height: 1.5; }
+  button.primary { background: var(--sage-dark); color: white; border: 0; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 15px; transition: all .2s; }
+  button.primary:hover { background: #4d6850; }
+  button.primary:disabled { background: #aaa; cursor: not-allowed; }
+  .results { margin-top: 24px; }
+  .stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat { background: white; padding: 12px 18px; border-radius: 8px; border: 1px solid var(--border); }
+  .stat strong { color: var(--sage-dark); font-size: 18px; }
+  table.results-table { width: 100%; background: white; border-collapse: collapse; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table.results-table th { background: var(--sage-dark); color: white; padding: 10px 14px; text-align: left; font-size: 12px; text-transform: uppercase; }
+  table.results-table td { padding: 10px 14px; border-bottom: 1px solid #f0ece2; font-size: 13px; vertical-align: top; }
+  table.results-table tr.pidf-row { background: var(--pidf-bg); }
+  table.results-table tr:hover { background: #f0ece2; }
+  .num { color: #999; font-size: 11px; width: 30px; }
+  .demanded { font-weight: 600; color: var(--sage-dark); }
+  .demanded-meta { font-size: 11px; color: #999; }
+  .chosen { font-weight: 500; }
+  .supplier { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: white; }
+  .supplier.pidf { background: var(--pidf); }
+  .supplier.innocenti { background: #9c7cb0; }
+  .supplier.vannucci { background: #7c9db0; }
+  .supplier.fleur { background: #b07c8f; }
+  .reason { font-size: 11px; color: #888; font-style: italic; max-width: 300px; }
+  .loading { text-align: center; padding: 60px; color: #888; }
+  .loading::before { content: '⏳'; font-size: 48px; display: block; margin-bottom: 12px; }
+  /* Rules page */
+  .rules-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+  .rule { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
+  .rule.disabled { opacity: 0.5; }
+  .rule-name { font-weight: 700; color: var(--sage-dark); margin-bottom: 6px; font-size: 15px; }
+  .rule-conditions, .rule-actions { font-size: 12px; color: #666; line-height: 1.6; }
+  .rule-conditions strong, .rule-actions strong { color: var(--text); }
+  .rule-arrow { color: var(--sage); font-size: 18px; margin: 0 8px; }
+  .rule-actions { background: var(--cream); padding: 6px 10px; border-radius: 4px; display: inline-block; }
+  .rule-buttons { display: flex; flex-direction: column; gap: 6px; }
+  .rule-buttons button { padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); background: white; cursor: pointer; font-size: 11px; white-space: nowrap; }
+  .rule-buttons button.toggle { color: var(--sage-dark); }
+  .rule-buttons button.delete { color: var(--fail); }
+  .rule-form { background: white; border: 2px solid var(--sage); border-radius: 10px; padding: 20px; margin-top: 16px; }
+  .rule-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; }
+  .field input, .field select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: inherit; }
+  .field-checkbox { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+  .add-rule-btn { background: var(--sage); color: white; border: 0; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+  .add-rule-btn:hover { background: var(--sage-dark); }
+  .examples-banner { background: #fff8e0; border: 1px solid #f0d896; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 13px; }
+  .examples-banner strong { color: #8c6d1a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌿 Pepini Devis</h1>
+  <nav>
+    <button class="nav-btn active" data-page="devis">Nouveau devis</button>
+    <button class="nav-btn" data-page="rules">Règles métier</button>
+    <button class="nav-btn" data-page="archi">Architecture</button>
+  </nav>
+</header>
+
+<div class="container">
+
+  <!-- ========== PAGE DEVIS ========== -->
+  <div class="page active" id="page-devis">
+    <h2>Générer un devis</h2>
+    <div class="form-grid">
+      <div class="card">
+        <label style="font-weight:600;color:var(--sage-dark);font-size:13px;text-transform:uppercase;letter-spacing:.3px">Texte du devis client</label>
+        <textarea class="devis" id="clientText" placeholder="Colle ici le devis du client...&#10;Ex:&#10;3 Trachycarpus fortunei 200/250&#10;14 Gaura lindheimeri Blanche 3L&#10;5 Heuchera Lime Marmalade 2L"></textarea>
+      </div>
+      <div class="controls">
+        <div class="card">
+          <label style="font-weight:600;color:var(--sage-dark);font-size:13px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;display:block">Mode de matching</label>
+          <div class="mode-toggle">
+            <button class="active" data-mode="pidf-first">PIDF-first</button>
+            <button data-mode="exact">Cultivar exact</button>
+          </div>
+          <div class="mode-info" id="modeInfo">
+            <strong>PIDF-first</strong> : prioritise les produits du site PIDF (même si cultivar différent). Pour pousser ton stock interne.
+          </div>
+        </div>
+        <button class="primary" id="generateBtn">Générer le devis</button>
+      </div>
+    </div>
+    <div class="results" id="results"></div>
+  </div>
+
+  <!-- ========== PAGE RULES ========== -->
+  <div class="page" id="page-rules">
+    <h2>Règles métier (texte libre)</h2>
+    <div class="examples-banner">
+      <strong>💡 Écris tes règles en français libre, une par ligne.</strong> Claude les lira et les appliquera à chaque devis.<br>
+      Exemples :
+      <ul style="margin:6px 0 0 18px;padding:0">
+        <li>Si on demande un Photinia sans préciser la variété, choisir Red Robin</li>
+        <li>Pour les Olea/oliviers, toujours prendre le PIDF</li>
+        <li>Pour les plantes en pot &lt; 3L que PIDF n'a pas, prendre chez Fleur Pro</li>
+        <li>Si Heuchera demandée sans cultivar, prendre n'importe quel Heuchera PIDF</li>
+        <li>Pour les gros formats &gt; 50L, toujours PIDF</li>
+      </ul>
+    </div>
+    <div class="card">
+      <textarea id="rulesText" style="width:100%;min-height:400px;padding:14px;border:1px solid var(--border);border-radius:8px;font-family:monospace;font-size:13px;line-height:1.6;resize:vertical" placeholder="Tes règles métier ici..."></textarea>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button class="primary" id="saveRulesBtn">💾 Enregistrer les règles</button>
+        <span id="rulesStatus" style="color:#888;font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== PAGE ARCHI ========== -->
+  <div class="page" id="page-archi">
+    <h2>Architecture du pipeline IA</h2>
+    <div class="card">
+      <p>Le devis client passe par un pipeline n8n en 5 étapes :</p>
+      <ol style="line-height:1.8">
+        <li><strong>Identification Claude</strong> : extrait genre, cultivar, taille, hauteur de chaque plante</li>
+        <li><strong>Recherche multi-source</strong> : embeddings OpenAI + recherche vectorielle pgvector + queries SQL ciblées (PIDF + cultivar)</li>
+        <li><strong>Application des règles métier</strong> : surcharge cultivar/fournisseur selon les règles définies</li>
+        <li><strong>Scoring</strong> : bonus genre, taille, couleur, PIDF, cultivar match</li>
+        <li><strong>Choix final</strong> : Claude rerank + override PIDF/couleur + fallback genre</li>
+      </ol>
+      <p style="margin-top:14px;font-size:13px;color:#666">
+        <strong>Webhook :</strong> <code>https://planteidf.app.n8n.cloud/webhook/pepini-devis</code><br>
+        <strong>Catalogue :</strong> 59 912 produits embeddés (text-embedding-3-small) dans Supabase pgvector<br>
+        <strong>Modèle Claude :</strong> claude-sonnet-4-5 (temperature=0)
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+// Toutes les requêtes Supabase passent par n8n (pas de clé côté navigateur)
+const WEBHOOK = 'https://planteidf.app.n8n.cloud/webhook/pepini-devis';
+let currentMode = 'pidf-first';
+
+// Tabs
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + btn.dataset.page).classList.add('active');
+    if (btn.dataset.page === 'rules') loadRulesText();
+  };
+});
+
+// Mode toggle
+document.querySelectorAll('.mode-toggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.mode-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    const info = document.getElementById('modeInfo');
+    if (currentMode === 'pidf-first') {
+      info.innerHTML = '<strong>PIDF-first</strong> : prioritise les produits du site PIDF (même si cultivar différent). Pour pousser ton stock interne.';
+    } else {
+      info.innerHTML = '<strong>Cultivar exact</strong> : trouve le cultivar exact demandé peu importe le fournisseur. Pour respecter la demande client à la lettre.';
+    }
+  };
+});
+
+// Generate devis
+document.getElementById('generateBtn').onclick = async () => {
+  const text = document.getElementById('clientText').value.trim();
+  if (!text) { alert('Colle un devis dans la zone de texte.'); return; }
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true; btn.textContent = '⏳ Génération en cours (~60s)...';
+  document.getElementById('results').innerHTML = '<div class="loading">Pipeline IA en cours...</div>';
+  try {
+    const t0 = Date.now();
+    const res = await fetch(WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientText: text, mode: currentMode }) });
+    const data = await res.json();
+    const dt = ((Date.now() - t0) / 1000).toFixed(0);
+    renderResults(data, text, dt);
+  } catch (e) {
+    document.getElementById('results').innerHTML = '<div class="card" style="color:var(--fail)">Erreur : ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Générer le devis';
+  }
+};
+
+function renderResults(data, originalText, durationSec) {
+  if (!data.results) {
+    document.getElementById('results').innerHTML = '<div class="card" style="color:var(--fail)">Réponse invalide : ' + JSON.stringify(data).slice(0, 500) + '</div>';
+    return;
+  }
+  const lines = originalText.split('\n').filter(l => l.trim());
+  const pidfN = data.results.filter(r => r.chosen?.supplier?.includes('PIDF')).length;
+  const matched = data.results.filter(r => r.chosen).length;
+  const total = data.results.length;
+  let totalPrice = 0;
+  data.results.forEach(r => {
+    const lineMatch = (lines[data.results.indexOf(r)] || '').match(/^\s*(\d+)/);
+    const qty = lineMatch ? parseInt(lineMatch[1]) : (r.plant.quantity || 1);
+    if (r.chosen?.price) {
+      const retail = r.chosen.supplier && !r.chosen.supplier.includes('PIDF') ? r.chosen.price * 3.4 : r.chosen.price;
+      totalPrice += retail * qty;
+    }
+  });
+  const rows = data.results.map((r, i) => {
+    const line = lines[i] || '';
+    const p = r.plant;
+    // Extraire la taille BRUTE de la ligne client (pas le midpoint calculé)
+    function extractRawSize(line) {
+      if (!line) return { container: null, height: null };
+      // Container : "50L", "10 L"
+      const cMatch = line.match(/(\d+(?:[.,]\d+)?)\s*L\b/i);
+      // Hauteur range : "200/250", "150-175", "100/120cm"
+      const hRange = line.match(/\b(\d{2,3})\s*[\/\-]\s*(\d{2,3})\s*(?:cm)?\b/);
+      // Hauteur simple : "60cm"
+      const hSingle = line.match(/\b(\d{2,3})\s*cm\b/i);
+      // P9/godet
+      const pot = line.match(/\b(P\d+|godet)\b/i);
+      return {
+        container: cMatch ? cMatch[1].replace(',','.') + 'L' : (pot ? pot[1].replace(/godet/i,'godet') : null),
+        height: hRange ? hRange[1] + '/' + hRange[2] + 'cm' : (hSingle ? hSingle[1] + 'cm' : null)
+      };
+    }
+    const rawSize = extractRawSize(lines[i] || '');
+    const demandedMeta = [
+      p.nom_fr,
+      rawSize.container,
+      rawSize.height
+    ].filter(Boolean).join(' · ');
+    const demanded = `<div class="demanded">${escape((p.genre||'?') + ' ' + (p.cultivar||''))}</div><div class="demanded-meta">${escape(demandedMeta)}</div>`;
+    // Quantité (depuis la ligne client OU plant.quantity)
+    const lineMatch = (lines[i] || '').match(/^\s*(\d+)/);
+    const qty = lineMatch ? parseInt(lineMatch[1]) : (p.quantity || 1);
+    const qtyCell = `<div style="font-size:18px;font-weight:700;color:var(--sage-dark);text-align:center">${qty}</div>`;
+    if (!r.chosen) return `<tr><td class="num">${i+1}</td><td>${demanded}</td><td colspan="4" style="color:var(--fail)">❌ Aucun match — <em>${escape(r.reason||'')}</em></td></tr>`;
+    const c = r.chosen;
+    const isPIDF = c.supplier?.includes('PIDF');
+    const supCls = isPIDF ? 'pidf' : (c.supplier||'').toLowerCase().includes('innocenti') ? 'innocenti' : (c.supplier||'').toLowerCase().includes('vannucci') ? 'vannucci' : 'fleur';
+    // Construire le sélecteur de taille
+    function fmtSize(item) {
+      // Container: P9/P11 affichés tels quels, sinon litres
+      let cs;
+      const rawC = item.container_raw || '';
+      const potMatch = rawC.match(/^P(\d+(?:[.,]\d+)?)/i);
+      if (potMatch) {
+        const n = parseFloat(potMatch[1].replace(',', '.'));
+        if (n < 12) cs = 'P' + n;  // P9, P11 tels quels
+        else if (item.container_liters) cs = item.container_liters + 'L';
+        else cs = 'P' + n;
+      } else if (rawC && /^\d+([-/]\d+)?$/.test(rawC)) cs = rawC + 'L';
+      else if (item.container_liters) cs = item.container_liters + 'L';
+      else cs = '';
+      const isRH = item.height_raw && /\d+\s*[\/\-]?\s*\d*\s*(cm|m)\b/i.test(item.height_raw);
+      const hs = isRH ? item.height_raw : (item.height_cm ? item.height_cm + 'cm' : '');
+      return [cs, hs].filter(Boolean).join(' · ') + (item.price ? ' — ' + item.price + '€' : '');
+    }
+    // Dropdown TAILLE = alternatives du même produit chez le même fournisseur
+    const alts = (r.alternatives && r.alternatives.length > 1) ? r.alternatives : null;
+    let size;
+    if (alts) {
+      const opts = alts.map(a => `<option value="${a.id}" ${a.id === c.id ? 'selected' : ''}>${escape(fmtSize(a))}</option>`).join('');
+      size = `<select class="size-selector" data-row="${i}" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:100%">${opts}</select>`;
+    } else {
+      size = fmtSize(c);
+    }
+    const rulesBadge = (r.applied_rules && r.applied_rules.length) ? '<div style="font-size:10px;color:#8c6d1a;background:#fff8e0;padding:2px 6px;border-radius:3px;margin-top:3px;display:inline-block">📋 ' + escape(r.applied_rules.join(', ')) + '</div>' : '';
+    const isWho = c.supplier && !c.supplier.includes('PIDF');
+    const retailUnit = c.price ? (isWho ? c.price * 3.4 : c.price) : 0;
+    const priceDisplay = c.price ? (isWho ? `${retailUnit.toFixed(2)}€<div style="font-size:10px;color:#999;font-weight:400;margin-top:2px">achat: ${c.price}€ ×3.4</div>` : `${c.price}€`) : '—';
+    const lineTotal = (c.price && qty) ? (retailUnit * qty).toFixed(2) + '€' : '—';
+    const supplierCell = `<span class="supplier ${supCls}">${escape(c.supplier)}</span>`;
+    return `<tr class="${isPIDF ? 'pidf-row' : ''}"><td class="num">${i+1}</td><td style="text-align:center;width:60px">${qtyCell}</td><td>${demanded}</td><td><div class="chosen">${isPIDF?'👑 ':''}${escape(c.original_name)}</div><div class="reason">${escape(r.reason||'')}</div>${rulesBadge}</td><td class="size-cell" data-row="${i}" style="min-width:180px">${size}</td><td><strong class="price-cell" data-row="${i}">${priceDisplay}</strong></td><td><strong class="line-total" data-row="${i}" style="color:var(--sage-dark)">${lineTotal}</strong></td><td>${supplierCell}</td></tr>`;
+  }).join('');
+  // Stocker les alternatives par ligne pour mise à jour
+  window._currentResults = data.results;
+  window._currentLines = lines;
+  // Discount controls : 3 options EXCLUSIVES (radio)
+  const discountControls = `
+    <div class="stat" style="flex:1;min-width:420px">
+      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Type de remise</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border-radius:6px;border:1px solid var(--border)"><input type="radio" name="d-type" value="tier" checked> Palier PIDF (auto)</label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border-radius:6px;border:1px solid #f0d896;background:#fff8e0;font-weight:600"><input type="radio" name="d-type" value="pro"> Pro –23%</label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;border-radius:6px;border:1px solid var(--border)"><input type="radio" name="d-type" value="custom"> Perso <input type="number" id="d-custom" value="0" min="0" max="100" style="width:50px;padding:2px 4px;border:1px solid var(--border);border-radius:3px;font-weight:700;margin-left:4px">%</label>
+      </div>
+      <div id="d-tier-config" style="margin-top:6px;font-size:11px;color:#888">
+        Paliers : 300€ <input type="number" id="d-tier1" value="5" style="width:36px;padding:1px 3px;border:1px solid var(--border);border-radius:3px;font-size:11px"/>% &middot; 600€ <input type="number" id="d-tier2" value="10" style="width:36px;padding:1px 3px;border:1px solid var(--border);border-radius:3px;font-size:11px"/>% &middot; 900€ <input type="number" id="d-tier3" value="15" style="width:36px;padding:1px 3px;border:1px solid var(--border);border-radius:3px;font-size:11px"/>%
+      </div>
+    </div>`;
+  document.getElementById('results').innerHTML = `
+    <div class="stats-row" style="align-items:stretch">
+      <div class="stat"><strong>${matched}/${total}</strong> matchés</div>
+      <div class="stat"><strong>${pidfN}</strong> 👑 PIDF</div>
+      <div class="stat"><strong id="stat-total">${totalPrice.toFixed(2)}€</strong> total</div>
+      <div class="stat"><strong>${durationSec}s</strong> traitement</div>
+      ${discountControls}
+    </div>
+    <table class="results-table">
+      <thead><tr><th>#</th><th style="text-align:center">Qté</th><th>Demandé</th><th>Produit matché</th><th>Taille</th><th>Prix unit.</th><th>Total ligne</th><th>Fournisseur</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot id="results-tfoot"></tfoot>
+    </table>
+    <div style="margin-top:18px;text-align:right">
+      <button class="primary" id="sendToPennylane" style="background:#1d4ed8;padding:14px 24px;font-size:15px">
+        📤 Envoyer vers Pennylane
+      </button>
+    </div>
+    <div id="pennylaneModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:white;border-radius:12px;padding:28px;max-width:520px;width:90%;max-height:90vh;overflow-y:auto">
+        <h3 style="margin:0 0 16px;color:var(--sage-dark)">📤 Envoyer le devis vers Pennylane</h3>
+        <p style="font-size:13px;color:#666;margin:0 0 16px">Le devis sera créé en brouillon dans ton compte Pennylane. TVA 10% pour les plantes, 20% pour services/paillage/terreau.</p>
+        <div style="display:grid;gap:12px">
+          <div class="field"><label>Nom du client *</label><input type="text" id="pl-name" placeholder="ex: Jean Dupont"></div>
+          <div class="field"><label>Email</label><input type="email" id="pl-email" placeholder="ex: client@example.com"></div>
+          <div class="field"><label>Téléphone</label><input type="text" id="pl-phone" placeholder="06..."></div>
+          <div class="field"><label>N° et nom de rue</label><input type="text" id="pl-street" placeholder="ex: 70 avenue de Bellevue"></div>
+          <div style="display:grid;grid-template-columns:120px 1fr;gap:10px">
+            <div class="field"><label>Code postal</label><input type="text" id="pl-postcode" placeholder="77100"></div>
+            <div class="field"><label>Ville</label><input type="text" id="pl-city" placeholder="Mareuil-lès-Meaux"></div>
+          </div>
+          <div class="field"><label>Référence interne (optionnelle)</label><input type="text" id="pl-ref" placeholder="ex: BAT-2025-001"></div>
+        </div>
+        <div id="pl-status" style="margin-top:14px;font-size:13px;color:#666"></div>
+        <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end">
+          <button onclick="document.getElementById('pennylaneModal').style.display='none'">Annuler</button>
+          <button class="primary" id="pl-submit" style="background:#1d4ed8">Créer le devis</button>
+        </div>
+      </div>
+    </div>
+  `;
+  // Initialiser les listeners de remise
+  document.querySelectorAll('input[name="d-type"]').forEach(r => r.onchange = recalcTotal);
+  ['d-tier1','d-tier2','d-tier3'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.oninput = () => { document.querySelector('input[name="d-type"][value="tier"]').checked = true; recalcTotal(); };
+  });
+  const customEl = document.getElementById('d-custom');
+  if (customEl) customEl.oninput = () => { document.querySelector('input[name="d-type"][value="custom"]').checked = true; recalcTotal(); };
+  recalcTotal();
+
+  // Bouton Pennylane
+  document.getElementById('sendToPennylane').onclick = () => {
+    document.getElementById('pennylaneModal').style.display = 'flex';
+  };
+  document.getElementById('pl-submit').onclick = async () => {
+    const name = document.getElementById('pl-name').value.trim();
+    if (!name) { alert('Nom du client obligatoire'); return; }
+    const status = document.getElementById('pl-status');
+    status.textContent = '⏳ Envoi en cours...';
+    const lines = [];
+    window._currentResults.forEach((r, i) => {
+      if (!r.chosen) return;
+      const lm = (window._currentLines[i] || '').match(/^\s*(\d+)/);
+      const qty = lm ? parseInt(lm[1]) : (r.plant.quantity || 1);
+      const isW = r.chosen.supplier && !r.chosen.supplier.includes('PIDF');
+      const unitPrice = isW ? r.chosen.price * 3.4 : r.chosen.price;
+      const isService = /paillage|terreau|écorce|copeaux|service|livraison|jardini[èe]re|pot\b/i.test(r.chosen.original_name + ' ' + (r.plant.genre||''));
+      // Construire le label complet avec taille
+      let fullLabel = r.chosen.original_name;
+      const c = r.chosen;
+      const rawC = c.container_raw || '';
+      const potM = rawC.match(/^P(\d+(?:[.,]\d+)?)/i);
+      let containerStr;
+      if (potM) {
+        const n = parseFloat(potM[1].replace(',','.'));
+        containerStr = n < 12 ? 'P'+n : (c.container_liters ? c.container_liters+'L' : 'P'+n);
+      } else if (rawC && /^\d+([-/]\d+)?$/.test(rawC)) containerStr = rawC + 'L';
+      else if (c.container_liters) containerStr = c.container_liters + 'L';
+      else containerStr = '';
+      const isRH = c.height_raw && /\d+\s*[\/\-]?\s*\d*\s*(cm|m)\b/i.test(c.height_raw);
+      const heightStr = isRH ? c.height_raw : (c.height_cm ? c.height_cm + 'cm' : '');
+      const sizeInfo = [containerStr, heightStr].filter(Boolean).join(' · ');
+      if (sizeInfo && !fullLabel.includes(containerStr) && !fullLabel.includes(heightStr)) {
+        fullLabel = fullLabel + ' — ' + sizeInfo;
+      }
+      lines.push({
+        label: fullLabel,
+        quantity: qty,
+        unit_price: parseFloat(unitPrice.toFixed(2)),
+        vat_rate: isService ? 20 : 10,
+        supplier: r.chosen.supplier
+      });
+    });
+    const dType = document.querySelector('input[name="d-type"]:checked')?.value || 'tier';
+    const t1 = parseFloat(document.getElementById('d-tier1')?.value) || 0;
+    const t2 = parseFloat(document.getElementById('d-tier2')?.value) || 0;
+    const t3 = parseFloat(document.getElementById('d-tier3')?.value) || 0;
+    const custom = parseFloat(document.getElementById('d-custom')?.value) || 0;
+    const subtotal = lines.reduce((s, l) => s + l.unit_price * l.quantity, 0);
+    let totalDiscountPct = 0;
+    if (dType === 'pro') totalDiscountPct = 23;
+    else if (dType === 'custom') totalDiscountPct = custom;
+    else {
+      if (subtotal >= 900) totalDiscountPct = t3;
+      else if (subtotal >= 600) totalDiscountPct = t2;
+      else if (subtotal >= 300) totalDiscountPct = t1;
+    }
+    const payload = {
+      customer: {
+        name,
+        email: document.getElementById('pl-email').value.trim(),
+        phone: document.getElementById('pl-phone').value.trim(),
+        street: document.getElementById('pl-street').value.trim(),
+        postcode: document.getElementById('pl-postcode').value.trim(),
+        city: document.getElementById('pl-city').value.trim()
+      },
+      reference: document.getElementById('pl-ref').value.trim(),
+      lines,
+      discount_pct: parseFloat(totalDiscountPct.toFixed(2)),
+      mode: currentMode
+    };
+    try {
+      const res = await fetch('https://planteidf.app.n8n.cloud/webhook/pepini-to-pennylane', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (data.error) {
+        status.style.color = 'var(--fail)';
+        status.textContent = '❌ ' + data.error;
+      } else {
+        status.style.color = 'var(--ok)';
+        status.innerHTML = `✅ Devis créé dans Pennylane !<br>
+          <strong>${data.lines_count || '?'} lignes</strong> ·
+          HT ${data.currency_amount_before_tax}€ ·
+          TVA ${data.tax}€ ·
+          <strong>TTC ${data.amount}€</strong><br>
+          <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+            ${data.url ? '<a href="'+data.url+'" target="_blank" style="background:#1d4ed8;color:white;padding:6px 12px;border-radius:6px;text-decoration:none;font-weight:600">→ Ouvrir le devis dans Pennylane</a>' : ''}
+            ${data.pdf_url ? '<a href="'+data.pdf_url+'" target="_blank" style="background:var(--ok);color:white;padding:6px 12px;border-radius:6px;text-decoration:none;font-weight:600">📄 PDF</a>' : ''}
+          </div>`;
+        if (data.url) window.open(data.url, '_blank');
+      }
+    } catch(e) {
+      status.style.color = 'var(--fail)';
+      status.textContent = '❌ ' + e.message;
+    }
+  };
+
+  // Listeners sur les sélecteurs de TAILLE
+  document.querySelectorAll('.size-selector').forEach(sel => {
+    sel.onchange = () => {
+      const row = parseInt(sel.dataset.row);
+      const id = parseInt(sel.value);
+      const result = window._currentResults[row];
+      const newAlt = result.alternatives.find(a => a.id === id);
+      if (!newAlt) return;
+      // Mise à jour du prix
+      result.chosen.id = newAlt.id;
+      result.chosen.price = newAlt.price;
+      result.chosen.container_liters = newAlt.container_liters;
+      result.chosen.container_raw = newAlt.container_raw;
+      result.chosen.height_cm = newAlt.height_cm;
+      result.chosen.height_raw = newAlt.height_raw;
+      // recalcTotal va gérer prix + total ligne (avec margin si non-PIDF + remises)
+      recalcTotal();
+    };
+  });
+}
+
+// Free-text rules management — webhook n8n (pas de dépendance serve.js)
+const RULES_GET_URL = 'https://planteidf.app.n8n.cloud/webhook/rules';
+const RULES_PUT_URL = 'https://planteidf.app.n8n.cloud/webhook/rules-update';
+async function loadRulesText() {
+  try {
+    const res = await fetch(RULES_GET_URL);
+    const data = await res.json();
+    const arr = Array.isArray(data) ? data : (data.body || []);
+    document.getElementById('rulesText').value = arr[0]?.value || '';
+    document.getElementById('rulesStatus').textContent = '';
+  } catch(e) {
+    document.getElementById('rulesStatus').textContent = 'Erreur chargement: ' + e.message;
+  }
+}
+document.getElementById('saveRulesBtn').onclick = async () => {
+  const text = document.getElementById('rulesText').value;
+  const status = document.getElementById('rulesStatus');
+  status.textContent = '⏳ Sauvegarde...';
+  try {
+    const res = await fetch(RULES_PUT_URL, { method: 'POST', headers: {'Content-Type':'text/plain'}, body: text });
+    if (res.ok) {
+      status.style.color = 'var(--ok)';
+      status.textContent = '✅ Règles enregistrées — appliquées dès le prochain devis';
+      setTimeout(() => status.textContent = '', 4000);
+    } else {
+      status.style.color = 'var(--fail)';
+      status.textContent = '❌ Erreur: ' + await res.text();
+    }
+  } catch(e) {
+    status.style.color = 'var(--fail)';
+    status.textContent = '❌ ' + e.message;
+  }
+};
+
+// Marge pour les fournisseurs grossistes (prix achat → prix revente)
+const WHOLESALE_MARGIN = 3.4;
+function isWholesale(supplier) {
+  return supplier && !supplier.includes('PIDF');
+}
+function retailPrice(item) {
+  if (!item || !item.price) return 0;
+  return isWholesale(item.supplier) ? item.price * WHOLESALE_MARGIN : item.price;
+}
+
+function recalcTotal() {
+  if (!window._currentResults) return;
+  let subtotal = 0;
+  const qtys = [];
+  window._currentResults.forEach((r, i) => {
+    const lm = (window._currentLines[i] || '').match(/^\s*(\d+)/);
+    const q = lm ? parseInt(lm[1]) : (r.plant.quantity || 1);
+    qtys.push(q);
+    if (r.chosen?.price) subtotal += retailPrice(r.chosen) * q;
+  });
+  // Calcul remise — UNE seule option active (radio)
+  const dType = document.querySelector('input[name="d-type"]:checked')?.value || 'tier';
+  const t1 = parseFloat(document.getElementById('d-tier1')?.value) || 0;
+  const t2 = parseFloat(document.getElementById('d-tier2')?.value) || 0;
+  const t3 = parseFloat(document.getElementById('d-tier3')?.value) || 0;
+  const custom = parseFloat(document.getElementById('d-custom')?.value) || 0;
+  let tierPct = 0;
+  let tierLabel = '';
+  if (dType === 'pro') {
+    tierPct = 23;
+    tierLabel = 'Pro –23%';
+  } else if (dType === 'custom') {
+    tierPct = custom;
+    tierLabel = 'Remise personnalisée –' + custom + '%';
+  } else { // tier
+    if (subtotal >= 900) { tierPct = t3; tierLabel = 'Palier PIDF 900€ –' + t3 + '%'; }
+    else if (subtotal >= 600) { tierPct = t2; tierLabel = 'Palier PIDF 600€ –' + t2 + '%'; }
+    else if (subtotal >= 300) { tierPct = t1; tierLabel = 'Palier PIDF 300€ –' + t1 + '%'; }
+  }
+  const totalFinal = subtotal * (1 - tierPct / 100);
+  const totalDiscount = subtotal - totalFinal;
+  // Affichage
+  const tfoot = document.getElementById('results-tfoot');
+  if (tfoot) {
+    const rows = [];
+    rows.push(`<tr style="background:#f5f1e6"><td colspan="6" style="text-align:right;padding:10px;font-weight:600">Sous-total TTC</td><td style="font-weight:700;font-size:15px">${subtotal.toFixed(2)}€</td><td></td></tr>`);
+    if (tierPct > 0) rows.push(`<tr style="color:var(--ok)"><td colspan="6" style="text-align:right;padding:8px;font-size:13px">${tierLabel}</td><td>−${(subtotal*tierPct/100).toFixed(2)}€</td><td></td></tr>`);
+    rows.push(`<tr style="background:var(--sage-dark);color:white"><td colspan="6" style="text-align:right;padding:14px;font-weight:700;font-size:16px">TOTAL TTC</td><td style="font-weight:700;font-size:18px">${totalFinal.toFixed(2)}€</td><td></td></tr>`);
+    if (totalDiscount > 0) rows.push(`<tr><td colspan="8" style="text-align:right;padding:6px;color:#888;font-size:12px;font-style:italic">Vous économisez ${totalDiscount.toFixed(2)}€</td></tr>`);
+    tfoot.innerHTML = rows.join('');
+  }
+  // Mettre à jour le stat-total en haut
+  const statTotal = document.getElementById('stat-total');
+  if (statTotal) statTotal.textContent = totalFinal.toFixed(2) + '€';
+
+  // Appliquer la remise sur chaque ligne (prix unitaire + total ligne)
+  const totalDiscountPct = subtotal > 0 ? 1 - (totalFinal / subtotal) : 0; // ratio effectif
+  window._currentResults.forEach((r, i) => {
+    const priceCell = document.querySelector(`.price-cell[data-row="${i}"]`);
+    const lineTotalEl = document.querySelector(`.line-total[data-row="${i}"]`);
+    if (!r.chosen?.price) return;
+    const wholesale = r.chosen.price;
+    const retail = retailPrice(r.chosen); // = price * 3.4 si non-PIDF, sinon price
+    const discounted = retail * (1 - totalDiscountPct);
+    const q = qtys[i];
+    const isW = isWholesale(r.chosen.supplier);
+    if (priceCell) {
+      let html = '';
+      if (totalDiscountPct > 0.001) {
+        html += `<span style="text-decoration:line-through;color:#aaa;font-size:11px;font-weight:400">${retail.toFixed(2)}€</span><br><span style="color:var(--ok)">${discounted.toFixed(2)}€</span>`;
+      } else {
+        html += `<span>${retail.toFixed(2)}€</span>`;
+      }
+      if (isW) html += `<div style="font-size:10px;color:#999;font-weight:400;margin-top:2px">achat: ${wholesale}€ ×3.4</div>`;
+      priceCell.innerHTML = html;
+    }
+    if (lineTotalEl) {
+      const lineTotal = discounted * q;
+      const retailLine = retail * q;
+      if (totalDiscountPct > 0.001) {
+        lineTotalEl.innerHTML = `<span style="text-decoration:line-through;color:#aaa;font-size:11px;font-weight:400">${retailLine.toFixed(2)}€</span><br><span style="color:var(--ok);font-weight:700">${lineTotal.toFixed(2)}€</span>`;
+      } else {
+        lineTotalEl.textContent = retailLine.toFixed(2) + '€';
+      }
+    }
+  });
+}
+
+function escape(s) { return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+</script>
+</body>
+</html>
