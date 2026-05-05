@@ -268,7 +268,9 @@ function renderResults(data, originalText, durationSec) {
       else if (item.container_liters) cs = item.container_liters + 'L';
       else cs = '';
       const isRH = item.height_raw && /\d+\s*[\/\-]?\s*\d*\s*(cm|m)\b/i.test(item.height_raw);
-      const hs = isRH ? item.height_raw : (item.height_cm ? item.height_cm + 'cm' : '');
+      // Sanity check : ignorer les hauteurs aberrantes (catalogue Vannucci a des height_cm pourris : 3L à 650-900cm)
+      const isSaneHeight = item.height_cm && item.height_cm < 500 && !(item.container_liters && item.container_liters < 30 && item.height_cm > 200);
+      const hs = isRH ? item.height_raw : (isSaneHeight ? item.height_cm + 'cm' : '');
       return [cs, hs].filter(Boolean).join(' · ') + (item.price ? ' — ' + item.price + '€' : '');
     }
     // Dropdown TAILLE = alternatives du même produit chez le même fournisseur
@@ -385,7 +387,8 @@ function renderResults(data, originalText, durationSec) {
       else if (c.container_liters) containerStr = c.container_liters + 'L';
       else containerStr = '';
       const isRH = c.height_raw && /\d+\s*[\/\-]?\s*\d*\s*(cm|m)\b/i.test(c.height_raw);
-      const heightStr = isRH ? c.height_raw : (c.height_cm ? c.height_cm + 'cm' : '');
+      const isSaneHeight = c.height_cm && c.height_cm < 500 && !(c.container_liters && c.container_liters < 30 && c.height_cm > 200);
+      const heightStr = isRH ? c.height_raw : (isSaneHeight ? c.height_cm + 'cm' : '');
       const sizeInfo = [containerStr, heightStr].filter(Boolean).join(' · ');
       if (sizeInfo && !fullLabel.includes(containerStr) && !fullLabel.includes(heightStr)) {
         fullLabel = fullLabel + ' — ' + sizeInfo;
