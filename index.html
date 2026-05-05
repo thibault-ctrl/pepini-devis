@@ -489,8 +489,12 @@ async function loadRulesText() {
   try {
     const res = await fetch(RULES_GET_URL);
     const data = await res.json();
-    const arr = Array.isArray(data) ? data : (data.body || []);
-    document.getElementById('rulesText').value = arr[0]?.value || '';
+    // Le webhook peut renvoyer : [{value:"..."}] ou {value:"..."} ou {body:[{value:"..."}]}
+    let value = '';
+    if (Array.isArray(data)) value = data[0]?.value || '';
+    else if (data && typeof data.value === 'string') value = data.value;
+    else if (data && Array.isArray(data.body)) value = data.body[0]?.value || '';
+    document.getElementById('rulesText').value = value;
     document.getElementById('rulesStatus').textContent = '';
   } catch(e) {
     document.getElementById('rulesStatus').textContent = 'Erreur chargement: ' + e.message;
