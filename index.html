@@ -93,7 +93,11 @@
 
   <!-- ========== PAGE DEVIS ========== -->
   <div class="page active" id="page-devis">
-    <h2>Générer un devis</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0">Générer un devis</h2>
+      <button id="refreshPidfBtn" style="background:white;color:var(--sage-dark);border:1px solid var(--border);padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px">🔄 Actualiser PIDF</button>
+    </div>
+    <div id="refreshPidfStatus" style="display:none;background:#fff8e0;border:1px solid #f0d896;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px"></div>
     <div class="form-grid">
       <div class="card">
         <label style="font-weight:600;color:var(--sage-dark);font-size:13px;text-transform:uppercase;letter-spacing:.3px">Texte du devis client</label>
@@ -478,6 +482,50 @@ function renderResults(data, originalText, durationSec) {
 // Free-text rules management — webhook n8n (pas de dépendance serve.js)
 const RULES_GET_URL = 'https://planteidf.app.n8n.cloud/webhook/rules';
 const RULES_PUT_URL = 'https://planteidf.app.n8n.cloud/webhook/rules-update';
+const REFRESH_PIDF_URL = 'https://planteidf.app.n8n.cloud/webhook/refresh-pidf';
+
+// Bouton "Actualiser PIDF" — re-scrape Shopify et met à jour les prix en base
+document.getElementById('refreshPidfBtn').onclick = async () => {
+  const btn = document.getElementById('refreshPidfBtn');
+  const status = document.getElementById('refreshPidfStatus');
+  btn.disabled = true;
+  btn.textContent = '⏳ Actualisation en cours...';
+  status.style.display = 'block';
+  status.innerHTML = 'Récupération du catalogue Shopify PIDF...';
+  try {
+    const res = await fetch(REFRESH_PIDF_URL, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    const data = await res.json();
+    if (!data.ok) throw new Error('Échec refresh : ' + JSON.stringify(data).slice(0, 200));
+    let html = '<strong style="color:var(--ok)">✅ Actualisation terminée</strong><br>';
+    html += '<span style="color:#666">';
+    html += '<strong>' + data.totals.fetched + '</strong> variants Shopify · ';
+    html += '<strong>' + data.totals.in_db + '</strong> en base · ';
+    html += '<strong style="color:var(--ok)">' + data.updated + '</strong> prix mis à jour';
+    if (data.new_products > 0) html += ' · <strong style="color:var(--warn)">' + data.new_products + '</strong> nouveaux produits détectés';
+    if (data.removed > 0) html += ' · <strong style="color:#999">' + data.removed + '</strong> retirés/indisponibles';
+    html += '</span>';
+    if (data.samples?.updated?.length > 0) {
+      html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--sage-dark);font-weight:600;font-size:12px">Voir détail des prix mis à jour</summary>';
+      html += '<ul style="margin:6px 0 0;padding-left:20px;font-size:12px">';
+      for (const u of data.samples.updated) html += '<li>' + u.name + ' : ' + u.old + ' → ' + u.new + '</li>';
+      html += '</ul></details>';
+    }
+    if (data.samples?.new?.length > 0) {
+      html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--warn);font-weight:600;font-size:12px">Voir nouveaux produits (à ré-importer manuellement)</summary>';
+      html += '<ul style="margin:6px 0 0;padding-left:20px;font-size:12px">';
+      for (const n of data.samples.new) html += '<li>' + n.name + ' (' + n.size + ') ' + n.price + '€</li>';
+      html += '</ul></details>';
+    }
+    status.innerHTML = html;
+  } catch(e) {
+    status.style.background = '#fde8e8';
+    status.style.borderColor = '#f0a8a8';
+    status.innerHTML = '<strong style="color:var(--fail)">❌ Erreur</strong><br><span style="color:#666">' + e.message + '</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Actualiser PIDF';
+  }
+};
 async function loadRulesText() {
   try {
     const res = await fetch(RULES_GET_URL);
