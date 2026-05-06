@@ -85,6 +85,7 @@
   <nav>
     <button class="nav-btn active" data-page="devis">Nouveau devis</button>
     <button class="nav-btn" data-page="rules">Règles métier</button>
+    <button class="nav-btn" data-page="retours">Retours</button>
     <button class="nav-btn" data-page="archi">Architecture</button>
   </nav>
 </header>
@@ -133,6 +134,13 @@
     </div>
   </div>
 
+  <!-- ========== PAGE RETOURS ========== -->
+  <div class="page" id="page-retours">
+    <h2>Retours</h2>
+    <p style="color:#666;font-size:13px;margin:0 0 16px">Liste des matches signalés en pouce-bas par tes salariés. Sert à améliorer le système.</p>
+    <div id="feedbacksList"></div>
+  </div>
+
   <!-- ========== PAGE ARCHI ========== -->
   <div class="page" id="page-archi">
     <h2>Architecture du pipeline IA</h2>
@@ -167,8 +175,112 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + btn.dataset.page).classList.add('active');
     if (btn.dataset.page === 'rules') loadRulesText();
+    if (btn.dataset.page === 'retours') loadFeedbacks();
   };
 });
+
+// === FEEDBACKS (pouce en bas) ===
+const FEEDBACK_POST_URL = 'https://planteidf.app.n8n.cloud/webhook/feedback';
+const FEEDBACK_GET_URL = 'https://planteidf.app.n8n.cloud/webhook/feedbacks';
+const FEEDBACK_DEL_URL = 'https://planteidf.app.n8n.cloud/webhook/feedback';
+
+function getUserName() {
+  let n = localStorage.getItem('pepini_user_name');
+  if (!n) {
+    n = prompt('Quel est ton nom ? (pour signer tes retours)');
+    if (n && n.trim()) {
+      n = n.trim();
+      localStorage.setItem('pepini_user_name', n);
+    } else return null;
+  }
+  return n;
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.feedback-btn');
+  if (!btn) return;
+  const userName = getUserName();
+  if (!userName) return;
+  const idx = parseInt(btn.dataset.row);
+  const result = window._currentResults?.[idx];
+  if (!result) { alert('Erreur : ligne non trouvée'); return; }
+  const devisText = document.getElementById('clientText').value;
+  if (!confirm('Signaler ce match comme mauvais ?\n\nProduit : ' + (result.chosen?.original_name || '?') + '\nDemandé : ' + (result.plant?.genre || '?'))) return;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+  try {
+    const res = await fetch(FEEDBACK_POST_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        user_name: userName,
+        devis_text: devisText,
+        all_results: window._currentResults,
+        rejected_line: result,
+        rejected_index: idx
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      btn.textContent = '✅';
+      btn.style.background = '#dcfce7';
+      btn.title = 'Retour enregistré (' + userName + ')';
+    } else throw new Error('Échec : ' + JSON.stringify(data).slice(0, 100));
+  } catch (err) {
+    btn.textContent = '❌';
+    btn.title = 'Erreur : ' + err.message;
+    btn.disabled = false;
+  }
+});
+
+async function loadFeedbacks() {
+  const list = document.getElementById('feedbacksList');
+  list.innerHTML = '<div style="padding:24px;color:#888;text-align:center">⏳ Chargement...</div>';
+  try {
+    const res = await fetch(FEEDBACK_GET_URL);
+    const data = await res.json();
+    const feedbacks = Array.isArray(data) ? data : (data.body || []);
+    if (feedbacks.length === 0) {
+      list.innerHTML = '<div style="padding:24px;color:#888;text-align:center">Aucun retour pour le moment.</div>';
+      return;
+    }
+    list.innerHTML = feedbacks.map(f => {
+      const r = f.rejected_line || {};
+      const c = r.chosen || {};
+      const p = r.plant || {};
+      const date = new Date(f.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+      return `<div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+          <div>
+            <strong style="color:var(--sage-dark)">👎 ${escapeHtml(f.user_name)}</strong>
+            <span style="color:#888;font-size:12px;margin-left:8px">${date}</span>
+          </div>
+          <button onclick="deleteFeedback(${f.id})" style="background:none;border:1px solid var(--border);border-radius:4px;padding:4px 8px;cursor:pointer;color:var(--fail);font-size:12px">Supprimer</button>
+        </div>
+        <div style="font-size:13px;color:#666;margin-bottom:8px"><strong>Devis :</strong> <span style="font-family:monospace;background:#f5f1e6;padding:2px 6px;border-radius:3px">${escapeHtml(f.devis_text||'').slice(0, 200)}</span></div>
+        <div style="background:#fde8e8;border:1px solid #f0a8a8;border-radius:8px;padding:12px;font-size:13px">
+          <div><strong>Demandé :</strong> ${escapeHtml(p.genre||'?')} ${escapeHtml(p.cultivar||'')} ${p.height_cm ? p.height_cm+'cm' : ''} ${p.container_liters ? p.container_liters+'L' : ''}</div>
+          <div style="margin-top:4px"><strong>Matché (mauvais) :</strong> ${escapeHtml(c.original_name||'?')} — ${c.container_liters||'?'}L · ${escapeHtml(c.height_raw||'')} · ${c.price||'?'}€ <span class="supplier" style="background:#888;color:white;padding:2px 6px;border-radius:3px;font-size:10px;margin-left:6px">${escapeHtml(c.supplier||'')}</span></div>
+          ${r.reason ? '<div style="margin-top:6px;color:#666;font-style:italic;font-size:12px">Raison : '+escapeHtml(r.reason)+'</div>' : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    list.innerHTML = '<div style="padding:24px;color:var(--fail)">Erreur : ' + err.message + '</div>';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+window.deleteFeedback = async function(id) {
+  if (!confirm('Supprimer ce retour ?')) return;
+  try {
+    await fetch(FEEDBACK_DEL_URL + '?id=' + id, { method: 'DELETE' });
+    loadFeedbacks();
+  } catch(e) { alert('Erreur : ' + e.message); }
+};
 
 // Mode toggle
 document.querySelectorAll('.mode-toggle button').forEach(btn => {
@@ -292,7 +404,7 @@ function renderResults(data, originalText, durationSec) {
     const priceDisplay = c.price ? (isWho ? `${retailUnit.toFixed(2)}€<div style="font-size:10px;color:#999;font-weight:400;margin-top:2px">achat: ${c.price}€ ×3.4</div>` : `${c.price}€`) : '—';
     const lineTotal = (c.price && qty) ? (retailUnit * qty).toFixed(2) + '€' : '—';
     const supplierCell = `<span class="supplier ${supCls}">${escape(c.supplier)}</span>`;
-    return `<tr class="${isPIDF ? 'pidf-row' : ''}"><td class="num">${i+1}</td><td style="text-align:center;width:60px">${qtyCell}</td><td>${demanded}</td><td><div class="chosen">${isPIDF?'👑 ':''}${escape(c.original_name)}</div><div class="reason">${escape(r.reason||'')}</div>${rulesBadge}</td><td class="size-cell" data-row="${i}" style="min-width:180px">${size}</td><td><strong class="price-cell" data-row="${i}">${priceDisplay}</strong></td><td><strong class="line-total" data-row="${i}" style="color:var(--sage-dark)">${lineTotal}</strong></td><td>${supplierCell}</td></tr>`;
+    return `<tr class="${isPIDF ? 'pidf-row' : ''}"><td class="num">${i+1}</td><td style="text-align:center;width:60px">${qtyCell}</td><td>${demanded}</td><td><div class="chosen">${isPIDF?'👑 ':''}${escape(c.original_name)}</div><div class="reason">${escape(r.reason||'')}</div>${rulesBadge}</td><td class="size-cell" data-row="${i}" style="min-width:180px">${size}</td><td><strong class="price-cell" data-row="${i}">${priceDisplay}</strong></td><td><strong class="line-total" data-row="${i}" style="color:var(--sage-dark)">${lineTotal}</strong></td><td>${supplierCell}</td><td style="text-align:center"><button class="feedback-btn" data-row="${i}" title="Signaler un mauvais match" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px">👎</button></td></tr>`;
   }).join('');
   // Stocker les alternatives par ligne pour mise à jour
   window._currentResults = data.results;
@@ -319,7 +431,7 @@ function renderResults(data, originalText, durationSec) {
       ${discountControls}
     </div>
     <table class="results-table">
-      <thead><tr><th>#</th><th style="text-align:center">Qté</th><th>Demandé</th><th>Produit matché</th><th>Taille</th><th>Prix unit.</th><th>Total ligne</th><th>Fournisseur</th></tr></thead>
+      <thead><tr><th>#</th><th style="text-align:center">Qté</th><th>Demandé</th><th>Produit matché</th><th>Taille</th><th>Prix unit.</th><th>Total ligne</th><th>Fournisseur</th><th style="text-align:center;width:50px">👎</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot id="results-tfoot"></tfoot>
     </table>
