@@ -205,8 +205,8 @@ document.addEventListener('click', async (e) => {
   const result = window._currentResults?.[idx];
   if (!result) { alert('Erreur : ligne non trouvée'); return; }
   const devisText = document.getElementById('clientText').value;
-  if (!confirm('Signaler ce match comme mauvais ?\n\nProduit : ' + (result.chosen?.original_name || '?') + '\nDemandé : ' + (result.plant?.genre || '?'))) return;
-  btn.textContent = '⏳';
+  if (!confirm('Faire un retour sur ce match ?\n\nDemandé : ' + (result.plant?.genre || '?') + ' ' + (result.plant?.cultivar || '') + '\nMatché : ' + (result.chosen?.original_name || '?') + '\n\nTon retour sera enregistré dans l\'onglet "Retours" et nous aidera à corriger le système.')) return;
+  btn.textContent = '⏳ Envoi...';
   btn.disabled = true;
   try {
     const res = await fetch(FEEDBACK_POST_URL, {
@@ -222,9 +222,11 @@ document.addEventListener('click', async (e) => {
     });
     const data = await res.json();
     if (data.ok) {
-      btn.textContent = '✅';
+      btn.textContent = '✅ Envoyé';
       btn.style.background = '#dcfce7';
-      btn.title = 'Retour enregistré (' + userName + ')';
+      btn.style.borderColor = '#86efac';
+      btn.style.color = '#15803d';
+      btn.title = 'Retour enregistré par ' + userName;
     } else throw new Error('Échec : ' + JSON.stringify(data).slice(0, 100));
   } catch (err) {
     btn.textContent = '❌';
@@ -404,7 +406,7 @@ function renderResults(data, originalText, durationSec) {
     const priceDisplay = c.price ? (isWho ? `${retailUnit.toFixed(2)}€<div style="font-size:10px;color:#999;font-weight:400;margin-top:2px">achat: ${c.price}€ ×3.4</div>` : `${c.price}€`) : '—';
     const lineTotal = (c.price && qty) ? (retailUnit * qty).toFixed(2) + '€' : '—';
     const supplierCell = `<span class="supplier ${supCls}">${escape(c.supplier)}</span>`;
-    return `<tr class="${isPIDF ? 'pidf-row' : ''}"><td class="num">${i+1}</td><td style="text-align:center;width:60px">${qtyCell}</td><td>${demanded}</td><td><div class="chosen">${isPIDF?'👑 ':''}${escape(c.original_name)}</div><div class="reason">${escape(r.reason||'')}</div>${rulesBadge}</td><td class="size-cell" data-row="${i}" style="min-width:180px">${size}</td><td><strong class="price-cell" data-row="${i}">${priceDisplay}</strong></td><td><strong class="line-total" data-row="${i}" style="color:var(--sage-dark)">${lineTotal}</strong></td><td>${supplierCell}</td><td style="text-align:center"><button class="feedback-btn" data-row="${i}" title="Signaler un mauvais match" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px">👎</button></td></tr>`;
+    return `<tr class="${isPIDF ? 'pidf-row' : ''}"><td class="num">${i+1}</td><td style="text-align:center;width:60px">${qtyCell}</td><td>${demanded}</td><td><div class="chosen">${isPIDF?'👑 ':''}${escape(c.original_name)}</div><div class="reason">${escape(r.reason||'')}</div>${rulesBadge}</td><td class="size-cell" data-row="${i}" style="min-width:180px">${size}</td><td><strong class="price-cell" data-row="${i}">${priceDisplay}</strong></td><td><strong class="line-total" data-row="${i}" style="color:var(--sage-dark)">${lineTotal}</strong></td><td>${supplierCell}</td><td style="text-align:center"><button class="feedback-btn" data-row="${i}" title="Signaler un mauvais match — Aide à améliorer le système" style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:11px;color:var(--sage-dark);font-weight:600;white-space:nowrap">📝 Retour</button></td></tr>`;
   }).join('');
   // Stocker les alternatives par ligne pour mise à jour
   window._currentResults = data.results;
@@ -430,8 +432,12 @@ function renderResults(data, originalText, durationSec) {
       <div class="stat"><strong>${durationSec}s</strong> traitement</div>
       ${discountControls}
     </div>
+    <div style="background:#fff8e0;border:1px solid #f0d896;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">📝</span>
+      <span><strong style="color:#8c6d1a">Un match qui ne te convient pas ?</strong> Clique sur "Retour" à droite de la ligne concernée. Tes retours servent à améliorer le système.</span>
+    </div>
     <table class="results-table">
-      <thead><tr><th>#</th><th style="text-align:center">Qté</th><th>Demandé</th><th>Produit matché</th><th>Taille</th><th>Prix unit.</th><th>Total ligne</th><th>Fournisseur</th><th style="text-align:center;width:50px">👎</th></tr></thead>
+      <thead><tr><th>#</th><th style="text-align:center">Qté</th><th>Demandé</th><th>Produit matché</th><th>Taille</th><th>Prix unit.</th><th>Total ligne</th><th>Fournisseur</th><th style="text-align:center;width:90px">Retour</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot id="results-tfoot"></tfoot>
     </table>
